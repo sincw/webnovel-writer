@@ -26,6 +26,7 @@ allowed-tools: Read Write Edit Grep Bash Task
 - `/webnovel-write`：标准流程（含核心4个Checker）
 - `/webnovel-write --fast`：跳过 Step 2B，其余同标准
 - `/webnovel-write --minimal`：跳过 Step 2B，仅运行 consistency + continuity + ooc（不产出追读力数据）
+- `/webnovel-write --test`：仅执行 Step 1 + Step 2，跳过 Step 3/4/5/6，输出到 `正文/第{NNNN}章-TEST.md`
 
 ## Step 1: Context Agent
 
@@ -55,12 +56,24 @@ python "${CLAUDE_PLUGIN_ROOT}/scripts/extract_chapter_context.py" --chapter {cha
 ## Step 2: 写作
 
 - 遵循三大原则：大纲即法律 / 设定即物理 / 新实体需记录。
-- 输出纯正文到 `正文/第{NNNN}章.md`。
+- 输出纯正文到 `正文/第{NNNN}章.md`（`--test` 模式输出到 `正文/第{NNNN}章-TEST.md`）。
 - 章节内容需体现本章“反派层级”要求（无反派层级时标注“无”）。
 - 开写前加载核心约束：
 
 ```bash
 cat "${CLAUDE_PLUGIN_ROOT}/skills/webnovel-write/references/core-constraints.md"
+cat "${CLAUDE_PLUGIN_ROOT}/skills/webnovel-write/references/anti-ai-guide.md"  # Patch A 部分
+```
+
+- 加载项目写作人格（优先项目级，回退模板）：
+
+```bash
+# 优先加载项目级
+if [ -f "${PROJECT_ROOT}/.webnovel/style-persona.md" ]; then
+  cat "${PROJECT_ROOT}/.webnovel/style-persona.md"
+else
+  cat "${CLAUDE_PLUGIN_ROOT}/skills/webnovel-write/references/style-persona-template.md"
+fi
 ```
 
 场景写作与风格参考按需加载（见 `references/workflow-details.md`）。
@@ -72,8 +85,9 @@ cat "${CLAUDE_PLUGIN_ROOT}/skills/webnovel-write/references/core-constraints.md"
 - L2: 仅在触发条件满足时加载扩展参考。
 
 ### L1 (minimum)
-- Step 2 写作前：`references/core-constraints.md`
-- Step 4 润色前：`references/polish-guide.md`
+- Step 2 写作前：`references/core-constraints.md` + `references/anti-ai-guide.md`
+- Step 2 写作前：`.webnovel/style-persona.md`（回退 `references/style-persona-template.md`）
+- Step 4 润色前：`references/polish-guide.md`（已内嵌 Patch B 引用）
 
 ### L2 (conditional)
 - 仅当 Step 1.5 需要风格/体裁细化时加载：
@@ -107,6 +121,8 @@ cat "${CLAUDE_PLUGIN_ROOT}/skills/webnovel-write/references/core-constraints.md"
 cat "${CLAUDE_PLUGIN_ROOT}/skills/webnovel-write/references/polish-guide.md"
 cat "${CLAUDE_PLUGIN_ROOT}/skills/webnovel-write/references/writing/typesetting.md"
 ```
+
+执行 `anti-ai-guide.md` Patch B（二次自审降AI），规则已内嵌于 `polish-guide.md`。
 
 先修复 critical/high，再处理 medium/low。
 

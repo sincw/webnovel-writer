@@ -54,6 +54,7 @@ Path conventions:
 **Wave 2**: 主角（姓名/欲望/缺陷/结构） + 感情线 + 反派分层
 **Wave 3**: 金手指（类型/名称/风格/可见度/代价） + 条件追问
 **Wave 4**: 世界观（规模/力量/势力/阶层/境界） + 创意约束确认
+**Wave 5**: 写作风格偏好（文风调性/节奏/视角/雷区）
 
 Adjust order based on user's initial input. If user provides detailed info upfront, skip to missing items.
 
@@ -122,6 +123,14 @@ Order is flexible; group by theme.
 - 主角缺陷如何驱动故事（一句话）
 - 反派镜像如何体现（一句话）
 - 开篇钩子 + 核心卖点 1–3 条
+
+### F) 写作风格
+- 文风调性（用户自述或从预设选）：
+  - 预设选项: 底层烟火（家常/苦中带乐） | 冷酷凌厉（快节奏/硬核） | 轻松吐槽（搞笑/日常） | 正剧严肃（厚重/史诗） | 甜蜜温暖（治愈/恋爱） | 暗黑压抑（悬疑/恐怖） | 自定义
+- 叙事视角：第一人称 | 第三人称限制 | 第三人称全知
+- 节奏偏好：从容细腻 | 标准 | 快节奏爽文
+- 写作雷区（用户补充，可为空）
+- 特殊要求（口头禅风格、方言倾向、特定参考作品等，可为空）
 
 ## Generate project
 
@@ -201,6 +210,25 @@ Create `.webnovel/idea_bank.json` with the selected idea and inherited constrain
 ```
 
 ### Patch 总纲.md
+
+### Generate style-persona.md
+
+Based on Wave 5 collected data + genre + target reader, generate `.webnovel/style-persona.md`:
+
+1. Read template: `${CLAUDE_PLUGIN_ROOT}/skills/webnovel-write/references/style-persona-template.md`
+2. Adapt each section to match the project:
+   - **核心心态**: Rewrite to match selected 文风调性（e.g. 冷酷凌厉 vs 底层烟火 tone completely different）
+   - **节奏控制**: Adjust based on 节奏偏好（从容细腻 → 多细节慢写 / 快节奏 → 少碎念多推进）
+   - **文风调性**: Fill with user's choice + genre-appropriate traits
+   - **具体落笔习惯**: Adapt word choice level, dialogue style, description density to genre
+   - **雷区**: Merge template defaults + user's custom 写作雷区
+   - **自检三问**: Rewrite to match the project's voice target
+3. If user chose "自定义" tone, use their description as the primary source, template as structural guide only
+4. Write to `{project_root}/.webnovel/style-persona.md`
+
+> If user skips Wave 5 entirely, copy template as-is and note "使用默认风格模板，可后续修改".
+
+### Patch 总纲.md
 After init, fill these fields in `大纲/总纲.md` using collected info:
 - 故事一句话 / 核心主线 / 核心暗线
 - 创意约束（反套路规则 / 硬约束 / 主角缺陷 / 反派镜像）
@@ -212,6 +240,7 @@ After init, fill these fields in `大纲/总纲.md` using collected info:
 Get-Item "{project_root}/.webnovel/state.json"
 Get-ChildItem "{project_root}/设定集" -Filter *.md
 Get-Item "{project_root}/大纲/总纲.md"
+Get-Item "{project_root}/.webnovel/style-persona.md"
 ```
 
 ### Final check
@@ -219,6 +248,7 @@ Get-Item "{project_root}/大纲/总纲.md"
 - `设定集/世界观.md`、`力量体系.md`、`主角卡.md`、`金手指设计.md` 已生成
 - `大纲/总纲.md` 已填：一句话故事 / 核心主线 / 创意约束 / 反派分层
 - `.webnovel/idea_bank.json` 已写入（有创意约束时）
+- `.webnovel/style-persona.md` 已生成（含核心心态/文风调性/落笔习惯/雷区/自检三问）
 
 ### Hard fail conditions (must stop)
 - 任一关键文件不存在（state.json / 总纲.md / 设定集主文件）
@@ -233,4 +263,5 @@ If any hard fail triggers:
    - Missing files → re-run init_project.py.
    - 总纲缺字段 → patch 总纲.md only.
    - idea_bank.json 缺失 → write it only.
+   - style-persona.md 缺失 → generate from template + collected style data.
 4. Re-run Final check. Do not proceed to /webnovel-plan until passing.

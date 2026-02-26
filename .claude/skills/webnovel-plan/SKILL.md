@@ -19,29 +19,31 @@ Use progressive disclosure and load only what current step requires:
 - L2: Conditional references only if constraints/genre details are needed.
 
 ### L1 (step-gated minimum)
-- Before Step 3 (volume skeleton):
+- Before Step 4 (volume skeleton):
   - `references/strand-weave-pattern.md`
   - `.claude/references/genre-profiles.md`
 
 ### L2 (conditional)
-- Before Step 3, load only if爽点结构需要细化:
+- Before Step 4, load only if爽点结构需要细化:
   - `references/cool-points-guide.md`
-- Before Step 4, load only if需要钩子/节奏细分:
+- Before Step 5, load only if需要钩子/节奏细分:
   - `.claude/references/reading-power-taxonomy.md`
-- Before Step 3/4, load only if题材为电竞/直播文/克苏鲁:
+- Before Step 4/5, load only if题材为电竞/直播文/克苏鲁:
   - `references/outlining/genre-volume-pacing.md`
 
 ## Workflow
 1. Load project data.
 2. Select volume and confirm scope.
-3. Generate volume skeleton.
-4. Generate chapter outlines in batches.
-5. Validate + save + update state.
+3. **Volume brief — 生成卷简述（≤300字）并交由用户确认。**
+4. Generate volume skeleton.
+5. Generate chapter outlines in batches.
+6. Validate + save + update state.
 
 ## 1) Load project data
 ```bash
 cat "$PROJECT_ROOT/.webnovel/state.json"
 cat "$PROJECT_ROOT/大纲/总纲.md"
+cat "$PROJECT_ROOT/大纲/其他要求.md"
 ```
 
 Optional (only if they exist):
@@ -57,7 +59,25 @@ If 总纲.md lacks volume ranges / core conflict / climax, ask the user to fill 
 - Confirm any special requirement (tone, POV emphasis, romance, etc.).
 If 总纲缺少卷名/章节范围/核心冲突/卷末高潮，先补问并更新总纲，再继续。
 
-## 3) Generate volume skeleton
+## 3) Volume Brief（卷简述确认）
+
+基于总纲中该卷的信息，生成一份 ≤300 字的卷简述，包含：
+
+- **核心冲突**：本卷主要矛盾是什么
+- **主要角色**：本卷登场的关键人物及其立场
+- **起止走向**：从什么状态开始，到什么状态结束
+- **情绪基调**：本卷整体氛围（热血/压抑/轻松/紧张等）
+
+将简述呈现给用户，**等待用户确认或修改后再继续**。
+
+用户可能的反馈：
+- **确认无误** → 进入 Step 4 生成卷骨架
+- **提出修改** → 根据反馈调整简述，再次确认
+- **补充信息** → 将补充内容纳入简述，同步更新总纲（如有必要）
+
+> 此步骤为硬性门槛，未经用户确认不得进入 Step 4。
+
+## 4) Generate volume skeleton
 Load genre profile and apply standards:
 ```bash
 cat ".claude/references/genre-profiles.md"
@@ -148,7 +168,7 @@ Use this template and fill from 总纲 + idea_bank:
 - 硬约束：贯穿全卷
 ```
 
-## 4) Generate chapter outlines (batched)
+## 5) Generate chapter outlines (batched)
 Batching rule:
 - ≤20 章：1 批
 - 21–40 章：2 批
@@ -218,7 +238,7 @@ Save after each batch:
 '@ | Add-Content -Encoding UTF8 "$PROJECT_ROOT/大纲/第{volume_id}卷-详细大纲.md"
 ```
 
-## 5) Validate + save
+## 6) Validate + save
 ### Validation checks (must pass all)
 
 **1. 爽点密度检查**

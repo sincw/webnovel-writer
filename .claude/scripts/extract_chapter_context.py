@@ -54,7 +54,7 @@ def find_project_root(start_path: Path | None = None) -> Path:
 def extract_chapter_outline(project_root: Path, chapter_num: int) -> str:
     """Extract chapter outline segment from volume outline file."""
     volume_num = (chapter_num - 1) // 50 + 1
-    outline_file = project_root / "大纲" / f"第{volume_num}卷 详细大纲.md"
+    outline_file = project_root / "大纲" / f"第{volume_num}卷-详细大纲.md"
 
     if not outline_file.exists():
         return f"⚠️ 大纲文件不存在: {outline_file}"
