@@ -1,0 +1,29 @@
+{
+  "active_profile": "deepseek",
+  "profiles": {
+    "deepseek": {
+      "base_url": "http://localhost:5001",
+      "model": "deepseek-reasoner-search",
+      "api_key_env": "sk-cb3d840489e0497183bd4edff254469d",
+      "temperature": 0.85,
+      "max_tokens": 8192,
+      "top_p": 0.95
+    },
+    "qwen": {
+      "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "model": "qwen-plus",
+      "api_key_env": "QWEN_API_KEY",
+      "temperature": 0.85,
+      "max_tokens": 8192,
+      "top_p": 0.95
+    },
+    "openai": {
+      "base_url": "https://api.openai.com/v1",
+      "model": "gpt-4o",
+      "api_key_env": "OPENAI_API_KEY",
+      "temperature": 0.85,
+      "max_tokens": 8192,
+      "top_p": 0.95
+    }
+  }
+}

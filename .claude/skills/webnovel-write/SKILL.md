@@ -27,6 +27,9 @@ allowed-tools: Read Write Edit Grep Bash Task
 - `/webnovel-write --fast`：跳过 Step 2B，其余同标准
 - `/webnovel-write --minimal`：跳过 Step 2B，仅运行 consistency + continuity + ooc（不产出追读力数据）
 - `/webnovel-write --test`：仅执行 Step 1 + Step 2，跳过 Step 3/4/5/6，输出到 `正文/第{NNNN}章-TEST.md`
+- `/webnovel-write --external`：Step 1 由 Claude 执行，Step 2 交给外部模型（默认 DeepSeek），Step 3-6 继续由 Claude 执行
+- `/webnovel-write --external --mode full`：同上，但传递设定集核心文件给外部模型
+- `/webnovel-write --external --profile qwen`：指定外部模型 profile
 
 ## Step 1: Context Agent
 
@@ -62,7 +65,6 @@ python "${CLAUDE_PLUGIN_ROOT}/scripts/extract_chapter_context.py" --chapter {cha
 
 ```bash
 cat "${CLAUDE_PLUGIN_ROOT}/skills/webnovel-write/references/core-constraints.md"
-cat "${CLAUDE_PLUGIN_ROOT}/skills/webnovel-write/references/anti-ai-guide.md"  # Patch A 部分
 ```
 
 - 加载项目写作人格（优先项目级，回退模板）：
@@ -78,6 +80,25 @@ fi
 
 场景写作与风格参考按需加载（见 `references/workflow-details.md`）。
 
+### Step 2 External 模式（--external）
+
+当使用 `--external` 时，Step 2 改为调用外部模型脚本：
+
+```bash
+cd "${CLAUDE_PLUGIN_ROOT}/scripts"
+python external_writer.py \
+  --chapter {chapter_num} \
+  --project-root "{PROJECT_ROOT}" \
+  --mode {compact|full} \
+  --profile {profile_name}
+```
+
+- 脚本自动读取 Step 1 产出的 context_snapshot，组装 prompt 并调用外部 API
+- `--mode compact`（默认）：创作任务书 + 核心约束
+- `--mode full`：额外附加设定集核心文件
+- `--profile`：选择模型（deepseek/qwen/openai），配置见 `scripts/external_writer_config.json`
+- 输出到 `正文/第{NNNN}章.md`，后续 Step 3-6 正常执行
+
 ## Reference Loading Levels (strict, lazy)
 
 - L0: 不加载额外参考，直到当前 step 明确。
@@ -85,7 +106,6 @@ fi
 - L2: 仅在触发条件满足时加载扩展参考。
 
 ### L1 (minimum)
-- Step 2 写作前：`references/core-constraints.md` + `references/anti-ai-guide.md`
 - Step 2 写作前：`.webnovel/style-persona.md`（回退 `references/style-persona-template.md`）
 - Step 4 润色前：`references/polish-guide.md`（已内嵌 Patch B 引用）
 
@@ -121,8 +141,6 @@ fi
 cat "${CLAUDE_PLUGIN_ROOT}/skills/webnovel-write/references/polish-guide.md"
 cat "${CLAUDE_PLUGIN_ROOT}/skills/webnovel-write/references/writing/typesetting.md"
 ```
-
-执行 `anti-ai-guide.md` Patch B（二次自审降AI），规则已内嵌于 `polish-guide.md`。
 
 先修复 critical/high，再处理 medium/low。
 
