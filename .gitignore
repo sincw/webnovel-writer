@@ -22,6 +22,8 @@ Thumbs.db
 node_modules/
 nul
 .env
+.tmp/
+.tmp_outline_check/
 
 # Local research / sibling projects (avoid accidental commit)
 .sisyphus/
