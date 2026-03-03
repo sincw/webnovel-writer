@@ -21,6 +21,8 @@
 - [配置说明](#配置说明)
 - [项目结构](#项目结构)
 - [故障恢复](#故障恢复)
+- [版本历史（精简）](#版本历史精简)
+- [Star 趋势](#star-趋势)
 - [License](#license)
 
 ---
@@ -77,7 +79,8 @@
 **节奏红线**：
 - Quest 连续不超过 5 章
 - Fire 断档不超过 10 章
-- 每章至少包含 2 种 Strand
+- Constellation 断档不超过 15 章
+- 每章声明 1 个主导 Strand（可交织其他 Strand）
 
 ---
 
@@ -124,30 +127,38 @@
 | Claude Code | 最新版 | Anthropic 官方 CLI 工具 |
 | Git | 任意版本 | 版本控制和章节备份 |
 
-### 1. 安装
+### 1. 通过 Marketplace 安装插件（推荐）
 
 ```bash
-# 进入你的小说项目目录
-cd your-novel-project
+# 添加 GitHub 仓库为 marketplace（用户级，全局可用）
+claude plugin marketplace add lingfengQAQ/webnovel-writer --scope user
 
-# 克隆插件到 .claude 目录
-git clone https://github.com/lingfengQAQ/webnovel-writer.git .claude
+# 安装插件（指定 marketplace，避免重名冲突）
+claude plugin install webnovel-writer@webnovel-writer-marketplace --scope user
 
-# 安装 Python 依赖
-pip install -r .claude/scripts/requirements.txt
+# 安装 Python 依赖（必做）
+python -m pip install -r https://raw.githubusercontent.com/lingfengQAQ/webnovel-writer/HEAD/webnovel-writer/scripts/requirements.txt
+
+# 可选：确认安装状态
+claude plugin list
 ```
 
-可选（推荐）：设置 `data_modules` 模块路径，便于在项目根目录直接执行 `python -m data_modules.*`。
+> 若你只想当前项目生效：在项目目录执行，并把 `--scope user` 改为 `--scope project`。
+
+PowerShell 同样可用（命令一致）：
 
 ```powershell
-# Windows PowerShell
-$env:PYTHONPATH = ".claude/scripts"
+claude plugin marketplace add lingfengQAQ/webnovel-writer --scope user
+claude plugin install webnovel-writer@webnovel-writer-marketplace --scope user
+python -m pip install -r https://raw.githubusercontent.com/lingfengQAQ/webnovel-writer/HEAD/webnovel-writer/scripts/requirements.txt
 ```
 
-```bash
-# macOS / Linux
-export PYTHONPATH=".claude/scripts"
-```
+**官方插件机制说明**：
+- Marketplace 清单位于仓库根目录 `.claude-plugin/marketplace.json`。
+- 插件清单位于 `webnovel-writer/.claude-plugin/plugin.json`。
+- 运行时 Skills/Agents 统一通过 `CLAUDE_PLUGIN_ROOT` 定位资源，不再依赖旧的 `.claude/scripts` 路径探测。
+
+推荐：统一使用 `webnovel.py` 作为 CLI 入口，避免 `PYTHONPATH` / `cd` / 参数顺序导致的报错。
 
 **Python 依赖说明**：
 
@@ -171,22 +182,75 @@ export PYTHONPATH=".claude/scripts"
 - 选择题材类型
 - 设计金手指/核心卖点
 - 生成项目结构和设定模板
+- 自动写入当前项目绑定（workspace pointer + 全局 registry）
 
-### 3. 规划大纲
+> 说明：如果你只使用 `/webnovel-*` 命令，**不需要手动解析 PROJECT_ROOT**。
+> 只有在你要手动执行 Python CLI 时，才需要下面这一步。
+
+### 3. （可选）手动 CLI 时解析项目根
+
+```bash
+export WORKSPACE_ROOT="${CLAUDE_PROJECT_DIR:-$PWD}"
+
+if [ -z "${CLAUDE_PLUGIN_ROOT}" ] || [ ! -d "${CLAUDE_PLUGIN_ROOT}/scripts" ]; then
+  echo "ERROR: 未设置 CLAUDE_PLUGIN_ROOT 或缺少目录: ${CLAUDE_PLUGIN_ROOT}/scripts" >&2
+  exit 1
+fi
+export SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT}/scripts"
+
+# 把“工作区根”解析为“真实书项目根”
+export PROJECT_ROOT="$(python "${SCRIPTS_DIR}/webnovel.py" --project-root "${WORKSPACE_ROOT}" where)"
+echo "${PROJECT_ROOT}"
+```
+
+### 4. 配置 RAG 环境（必做）
+
+```bash
+# 进入书项目根目录
+cd "${PROJECT_ROOT}"
+
+# 复制模板并填写 API Key（/webnovel-init 会生成 .env.example）
+cp .env.example .env
+```
+
+PowerShell 可用：
+
+```powershell
+Set-Location $env:PROJECT_ROOT
+Copy-Item .env.example .env -Force
+```
+
+`.env` 至少配置以下字段（建议全部配置）：
+
+```bash
+EMBED_BASE_URL=https://api-inference.modelscope.cn/v1
+EMBED_MODEL=Qwen/Qwen3-Embedding-8B
+EMBED_API_KEY=your_embed_api_key
+
+RERANK_BASE_URL=https://api.jina.ai/v1
+RERANK_MODEL=jina-reranker-v3
+RERANK_API_KEY=your_rerank_api_key
+```
+
+说明：
+- 若未配置 Embedding Key，RAG 语义检索会降级为 BM25。
+- 支持用户级全局配置文件：`~/.claude/webnovel-writer/.env`（项目级 `.env` 优先）。
+
+### 5. 规划大纲
 
 ```bash
 # 规划第1卷大纲
 /webnovel-plan 1
 ```
 
-### 4. 开始创作
+### 6. 开始创作
 
 ```bash
 # 创作第1章
 /webnovel-write 1
 ```
 
-### 5. 质量审查（可选）
+### 7. 质量审查（可选）
 
 ```bash
 # 审查第1-5章
@@ -222,8 +286,9 @@ export PYTHONPATH=".claude/scripts"
 ```
 
 **产出**：
+- `大纲/第N卷-节拍表.md`（Promise/Catalyst/危机递增/中段反转/最低谷/大兑现+新钩子）
 - `大纲/第N卷-详细大纲.md`
-- 每章目标、爽点设计、Strand 类型
+- 每章：目标/阻力/代价/本章变化/章末未闭合问题/爽点/Strand/钩子/反派层级/关键实体
 - 新增实体预告
 
 ---
@@ -248,7 +313,7 @@ Step 2A: 生成粗稿（3000-5000字）
         ↓
 Step 2B: 风格适配器（网文化改写）
         ↓
-Step 3: 默认 4 Agent 审查（关键章扩展到 6）
+Step 3: 默认 4 Agent 审查（关键章扩展到 6）+ 保存审查指标（review_metrics）
         ↓
 Step 4: 网文化润色
         ↓
@@ -283,6 +348,11 @@ Step 6: Git 自动提交备份
 - 节奏 Strand 分布
 - 人物 OOC 检测
 - 场景连贯性
+
+**产出**：
+- `审查报告/第{start}-{end}章审查报告.md`（审查报告正文）
+- `.webnovel/index.db`：写入 `review_metrics`（用于趋势统计与写作建议）
+- `.webnovel/state.json`：追加 `review_checkpoints`（记录已审查区间与报告路径）
 
 ---
 
@@ -332,7 +402,7 @@ Step 6: Git 自动提交备份
 
 **输出结构（7个板块）**：
 1. **本章核心任务**（冲突一句话、必须完成、绝对不能）
-2. **接住上章**（上章钩子、读者期待、开头必须）
+2. **接住上章**（上章钩子、读者期待、开头建议）
 3. **出场角色**（状态、动机、情绪底色、说话风格、红线）
 4. **场景与力量约束**（地点、可用能力、禁用能力）
 5. **风格指导**（本章类型、参考样本、最近模式、本章建议）
@@ -378,7 +448,7 @@ Step 6: Git 自动提交备份
 
 | Checker | 检查内容 | 关键指标 |
 |---------|---------|---------|
-| **High-point Checker** | 爽点密度与质量 | 6种执行模式、30/40/30结构 |
+| **High-point Checker** | 爽点密度与质量 | 6种执行模式、滚动窗口评估（30/40/30 仅作参考） |
 | **Consistency Checker** | 战力/地点/时间线 | 设定即物理定律 |
 | **Pacing Checker** | Strand 比例分布 | Quest/Fire/Constellation |
 | **OOC Checker** | 人物言行是否符合人设 | 角色卡片对照 |
@@ -422,7 +492,7 @@ Step 6: Git 自动提交备份
 
 ### 爽点密度基准
 
-- **每章**：≥ 1 cool-point (任何单一模式)
+- **逐章优先**：有 cool-point 或同等兑现（允许过渡章低密度）
 - **每5章**：≥ 1 combo cool-point (2种以上模式叠加)
 - **每10章**：≥ 1 milestone victory (改变主角地位的阶段性胜利)
 
@@ -430,12 +500,13 @@ Step 6: Git 自动提交备份
 
 ## RAG 检索系统
 
-混合检索系统，支持语义搜索历史场景：
+混合检索系统，支持语义搜索历史场景与关系证据召回。
 
 ### 架构
 
 ```
-查询 → [向量检索] + [BM25关键词] → RRF融合 → Rerank排序 → Top-K结果
+查询 → QueryRouter(auto) → vector / bm25 / hybrid / graph_hybrid
+                         └→ RRF 融合 + Rerank → Top-K 结果
 ```
 
 ### 配置
@@ -465,7 +536,9 @@ RERANK_API_KEY=jina_xxx
 
 ### 使用方式
 
-- **Context Agent** 自动调用 RAG 检索相关历史场景
+- **Context Agent** 在 Step 0.5 通过 `webnovel.py extract-context` 读取 `rag_assist`
+  - 仅当大纲命中关系/伏笔/地点等触发词时才检索（避免无效召回）
+  - 优先 `auto` 策略（可走 `graph_hybrid`），失败或无 Embedding Key 时自动回退 BM25
 - **Data Agent** 自动将章节场景向量化存入数据库
 - 支持失败重试（指数退避，最多3次）
 
@@ -535,6 +608,16 @@ RERANK_API_KEY=jina_xxx
 
 ## 配置说明
 
+### 环境变量加载顺序（重要）
+
+RAG 相关环境变量（`EMBED_*` / `RERANK_*`）按以下顺序加载：
+
+1. 进程已设置的环境变量（最高优先级）
+2. 书项目根目录下的 `.env`
+3. 用户级全局：`~/.claude/webnovel-writer/.env`
+
+建议优先把项目专属配置写在 `${PROJECT_ROOT}/.env`，避免多项目串台。
+
 ### 核心配置 (`config.py`)
 
 ```python
@@ -562,13 +645,19 @@ extraction_confidence_medium = 0.5 # 中置信度阈值（待确认）
 context_recent_summaries_window = 3   # 最近摘要数量
 context_max_appearing_characters = 10 # 最大出场角色数
 context_max_urgent_foreshadowing = 5  # 最大紧急伏笔数
+
+# 智能 RAG 辅助（Step 0.5）
+context_rag_assist_enabled = True          # 是否启用按需检索
+context_rag_assist_top_k = 4               # 召回条数
+context_rag_assist_min_outline_chars = 40  # 大纲最小触发长度
+context_rag_assist_max_query_chars = 120   # 查询截断长度
 ```
 
 ---
 
 ## 文档归类
 
-- 当前基线文档：`README.md`、`CLAUDE.md`、`.claude/references/*.md`
+- 当前基线文档：`README.md`、`CLAUDE.md`、`webnovel-writer/references/*.md`、`webnovel-writer/references/shared/*.md`
 - 历史归档文档：`docs/archive/reports/`
 - 文档状态规则：`docs/doc-lifecycle.md`
 - 本地未跟踪归类：`docs/untracked-classification.md`
@@ -577,9 +666,12 @@ context_max_urgent_foreshadowing = 5  # 最大紧急伏笔数
 
 ## 项目结构
 
+> Marketplace 安装模式下，插件文件位于 Claude 插件缓存目录（不在项目内）。
+> 下方目录树展示的是“本地拷贝 `webnovel-writer` 到项目内”的形态，便于理解完整结构。
+
 ```
 your-novel-project/
-├── .claude/                    # 插件目录
+├── webnovel-writer/            # 插件目录
 │   ├── agents/                 # 8 个专职 Agent
 │   │   ├── context-agent.md    # 创作任务书工程师
 │   │   ├── data-agent.md       # 数据链工程师
@@ -615,10 +707,12 @@ your-novel-project/
 │   │       ├── 黑暗题材.md
 │   │       └── ...
 │   └── references/             # 写作指南
-│       ├── strand-weave.md
-│       ├── cool-points-guide.md
-│       ├── reading-power-taxonomy.md  # 追读力分类标准 (v5.3)
-│       ├── genre-profiles.md          # 题材配置档案 (v5.3)
+│       ├── shared/             # 单一事实源（共享参考）
+│       │   ├── core-constraints.md
+│       │   ├── strand-weave-pattern.md
+│       │   └── cool-points-guide.md
+│       ├── reading-power-taxonomy.md  # 追读力分类标准
+│       ├── genre-profiles.md          # 题材配置档案
 │       └── ...
 ├── .webnovel/                  # 运行时数据
 │   ├── state.json              # 权威状态 (含 chapter_meta)
@@ -632,6 +726,7 @@ your-novel-project/
 │   └── ...
 ├── 大纲/                       # 卷纲/章纲
 │   ├── 总纲.md
+│   ├── 第1卷-节拍表.md
 │   ├── 第1卷-详细大纲.md
 │   └── ...
 └── 设定集/                     # 世界观/角色/力量体系
@@ -649,83 +744,93 @@ your-novel-project/
 
 当 `index.db` 损坏或与实际数据不一致时：
 
-先确保当前 shell 能找到 `data_modules`（二选一）：
-- 设置环境变量：`PYTHONPATH=.claude/scripts`
-- 或先执行：`cd .claude/scripts`
+建议先统一设置（后续命令复用）：
+
+```bash
+export WORKSPACE_ROOT="${CLAUDE_PROJECT_DIR:-$PWD}"
+if [ -z "${CLAUDE_PLUGIN_ROOT}" ] || [ ! -d "${CLAUDE_PLUGIN_ROOT}/scripts" ]; then
+  echo "ERROR: 未设置 CLAUDE_PLUGIN_ROOT 或缺少目录: ${CLAUDE_PLUGIN_ROOT}/scripts" >&2
+  exit 1
+fi
+export SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT}/scripts"
+export PROJECT_ROOT="$(python "${SCRIPTS_DIR}/webnovel.py" --project-root "${WORKSPACE_ROOT}" where)"
+```
 
 ```bash
 # 重新处理单章
-python -m data_modules.index_manager process-chapter --chapter 1 --project-root "."
+python "${SCRIPTS_DIR}/webnovel.py" --project-root "${PROJECT_ROOT}" index process-chapter --chapter 1
 
 # 批量重新处理
 for i in $(seq 1 50); do
-  python -m data_modules.index_manager process-chapter --chapter $i --project-root "."
+  python "${SCRIPTS_DIR}/webnovel.py" --project-root "${PROJECT_ROOT}" index process-chapter --chapter $i
 done
 
 # 查看索引统计
-python -m data_modules.index_manager stats --project-root "."
+python "${SCRIPTS_DIR}/webnovel.py" --project-root "${PROJECT_ROOT}" index stats
 ```
 
 ### 追读力数据查询 (v5.3 引入)
 
 ```bash
 # 查看债务汇总
-python -m data_modules.index_manager get-debt-summary --project-root "."
+python "${SCRIPTS_DIR}/webnovel.py" --project-root "${PROJECT_ROOT}" index get-debt-summary
 
 # 查看最近章节追读力元数据
-python -m data_modules.index_manager get-recent-reading-power --limit 10 --project-root "."
+python "${SCRIPTS_DIR}/webnovel.py" --project-root "${PROJECT_ROOT}" index get-recent-reading-power --limit 10
 
 # 查看爽点模式使用统计
-python -m data_modules.index_manager get-pattern-usage-stats --last-n 20 --project-root "."
+python "${SCRIPTS_DIR}/webnovel.py" --project-root "${PROJECT_ROOT}" index get-pattern-usage-stats --last-n 20
 
 # 查看钩子类型使用统计
-python -m data_modules.index_manager get-hook-type-stats --last-n 20 --project-root "."
+python "${SCRIPTS_DIR}/webnovel.py" --project-root "${PROJECT_ROOT}" index get-hook-type-stats --last-n 20
 
 # 查看待偿还Override
-python -m data_modules.index_manager get-pending-overrides --project-root "."
+python "${SCRIPTS_DIR}/webnovel.py" --project-root "${PROJECT_ROOT}" index get-pending-overrides
 
 # 计算利息（开启追踪或需要时调用）
-python -m data_modules.index_manager accrue-interest --current-chapter 100 --project-root "."
+python "${SCRIPTS_DIR}/webnovel.py" --project-root "${PROJECT_ROOT}" index accrue-interest --current-chapter 100
 ```
 
 ### 审查趋势查询 (v5.4 引入)
 
 ```bash
 # 查看最近审查记录
-python -m data_modules.index_manager get-recent-review-metrics --limit 5 --project-root "."
+python "${SCRIPTS_DIR}/webnovel.py" --project-root "${PROJECT_ROOT}" index get-recent-review-metrics --limit 5
 
 # 查看审查趋势统计（均值/短板分析）
-python -m data_modules.index_manager get-review-trend-stats --last-n 5 --project-root "."
+python "${SCRIPTS_DIR}/webnovel.py" --project-root "${PROJECT_ROOT}" index get-review-trend-stats --last-n 5
 ```
 
 ### 质量趋势看板（离线报告）
 
 ```bash
 # 生成最近20条记录的质量趋势报告
-python .claude/scripts/quality_trend_report.py --project-root "." --limit 20
+python "${SCRIPTS_DIR}/quality_trend_report.py" --project-root "${PROJECT_ROOT}" --limit 20
 ```
+
+说明：`quality_trend_report.py` 支持直接传入真实书项目根并写入 `.webnovel/`。
 
 ### 测试入口脚本
 
 ```bash
 # 快速回归（推荐）
-pwsh .claude/scripts/run_tests.ps1 -Mode smoke
+pwsh webnovel-writer/scripts/run_tests.ps1 -Mode smoke
 
 # 全量 data_modules 测试
-pwsh .claude/scripts/run_tests.ps1 -Mode full
+pwsh webnovel-writer/scripts/run_tests.ps1 -Mode full
 ```
 
 ### 健康报告（status_reporter）
 
 ```bash
 # 全量健康报告
-python .claude/scripts/status_reporter.py --focus all --project-root "."
+python "${SCRIPTS_DIR}/webnovel.py" --project-root "${PROJECT_ROOT}" status -- --focus all
 
 # 仅看伏笔紧急度
-python .claude/scripts/status_reporter.py --focus urgency --project-root "."
+python "${SCRIPTS_DIR}/webnovel.py" --project-root "${PROJECT_ROOT}" status -- --focus urgency
 
 # 仅看爽点节奏
-python .claude/scripts/status_reporter.py --focus pacing --project-root "."
+python "${SCRIPTS_DIR}/webnovel.py" --project-root "${PROJECT_ROOT}" status -- --focus pacing
 ```
 
 说明：
@@ -736,7 +841,7 @@ python .claude/scripts/status_reporter.py --focus pacing --project-root "."
 ### Claude Code 调用责任（重要）
 
 - 本项目脚本默认由 Claude Code 的 Skill/Agent 在流程节点自动触发，不以人工手动调用为主。
-- 详细“谁调用、何时调用、调用什么”见：`.claude/references/claude-code-call-matrix.md`。
+- 详细“谁调用、何时调用、调用什么”见：`webnovel-writer/references/claude-code-call-matrix.md`。
 
 ### 向量重建
 
@@ -744,10 +849,10 @@ python .claude/scripts/status_reporter.py --focus pacing --project-root "."
 
 ```bash
 # 重新索引单章
-python -m data_modules.rag_adapter index-chapter --chapter 1 --project-root "."
+python "${SCRIPTS_DIR}/webnovel.py" --project-root "${PROJECT_ROOT}" rag index-chapter --chapter 1
 
 # 查看向量统计
-python -m data_modules.rag_adapter stats --project-root "."
+python "${SCRIPTS_DIR}/webnovel.py" --project-root "${PROJECT_ROOT}" rag stats
 ```
 
 ### Git 回滚
@@ -764,130 +869,24 @@ git checkout ch0045
 
 ---
 
-## 版本历史
+## 版本历史（精简）
 
-### v5.4.2 (当前)
-- **创意约束系统**：三轴混搭 + 反套路触发器 + 镜像对抗 + 约束继承
-- **题材模板扩展**：从10+扩展到37+种题材模板
-- **复合题材支持**：支持"题材A+题材B"组合（1主1辅）
-- **反套路库**：修仙/玄幻反套路库（20条限制 + 15种非套路爽点）
-- **规则怪谈反套路库**：20条限制 + 20种非套路爽点
-- **创意银行**：idea_bank.json 存储生成的创意包
-- **人物设定扩展**：女主卡、主角组、反派设计模板
-- **世界构建扩展**：货币体系、境界链模板、社会阶层、资源分配
-- **webnovel-init 升级**：Phase 6.5 创意约束生成
-- **webnovel-plan 升级**：Phase 2.5 加载创意约束 + Phase 7 约束继承检查
+| 版本 | 里程碑 |
+|------|--------|
+| **v5.4.4 (当前)** | 引入官方 Claude Code Plugin Marketplace 安装机制（仓库可直接安装）；统一修复 Skills/Agents/References 的 CLI 调用（`CLAUDE_PLUGIN_ROOT` 单路径，`status/context/update-state/migrate` 透传统一使用 `--` 分隔） |
+| **v5.4.3** | 智能 RAG 辅助上下文（按需触发 `auto/graph_hybrid`，失败回退 BM25）；关系事件图谱与 Graph-RAG 链路完善 |
+| **v5.4.x** | Context Contract v2 完成（reader_signal / genre_profile / writing_guidance / checklist_score / 动态预算）；审查趋势与调用可观测性 |
+| **v5.3** | 追读力系统落地（Hook/Cool-point/微兑现分类、Hard/Soft 约束、Override Contract、债务追踪） |
+| **v5.2** | 写作流程升级（Step 1.5 章节设计、reader-pull-checker、摘要分离到 `.webnovel/summaries/`） |
+| **v5.1-v5.0** | 双 Agent 基础架构 + SQLite 索引化（state 精简、实体/别名/状态变化入库） |
 
-### v5.4.1
-- **Checker分层**：审查Agent输出结构化报告
-- **Context精简**：创作任务书优化
+详细阶段性变更请参考提交历史与 `webnovel-writer/references/` 下对应规范文档。
 
-### v5.4
-- **审查指标追踪**：review_metrics 表记录每次审查的评分/维度/问题数
-- **审查趋势统计**：get-review-trend-stats 查询近期审查均值和短板
-- **故事骨架采样**：context_manager 每 N 章采样历史摘要，构建长篇感知
-- **上下文工程升级**：基于 Context Engineering Guide 优化
+---
 
-### Context Contract v2（阶段 A）
+## Star 趋势
 
-- 上下文契约升级为 v2：新增 `meta.context_contract_version = "v2"`
-- 新增上下文排序器：`data_modules/context_ranker.py`
-- 排序策略：近期优先 + 频次稳定 + 钩子/风险信号加权
-- 工作流可观测性：`workflow_manager.py` 会写入 `.webnovel/observability/call_trace.jsonl`
-
-参考文档：`.claude/references/context-contract-v2.md`
-
-### Context Contract v2（阶段 B）
-
-- 新增 `reader_signal` 段：自动聚合追读力与审查趋势信号
-- 新增 `genre_profile` 段：自动按题材加载策略参考（支持回退）
-- 目标：让写作阶段更接近网文平台读者偏好（钩子强度、爽点分布、低分补救）
-
-### Context Contract v2（阶段 C）
-
-- 新增 `writing_guidance`：按章生成可执行写作建议（低分修复/钩子差异化/题材锚定）
-- 新增紧凑文本策略：超预算 section 使用 `…[TRUNCATED]` 保留头尾关键信息
-- 目标：在有限上下文预算下提升“可写性”和“网文感”
-
-### Context Contract v2（阶段 D）
-
-- `extract_chapter_context.py` 已接入 Contract v2 输出
-- JSON 输出新增：`context_contract_version` / `reader_signal` / `genre_profile` / `writing_guidance`
-- text 输出新增：`写作执行建议` 板块，供 Context Agent / Writer 直接使用
-- **invalid_facts 表**：追踪无效事实，支持 pending/confirmed 状态
-- **父子向量索引**：parent_chunk_id 支持摘要-场景层级检索
-- **Token 预算管理**：ContextManager 实现 40%/35%/25% 优先级分配
-- **webnovel-learn skill**：从会话提取成功模式写入 project_memory.json
-- **CLI 统一输出**：CLIResponse 标准化 JSON 输出格式
-- **Pydantic Schema**：DataAgentOutput 等结构化验证
-- **向量库安全迁移**：vectors.db 表结构变更时自动备份并执行事务迁移，失败可回滚
-
-### Context Contract v2（阶段 E）
-
-- `writing_guidance` 新增 `checklist`：可执行、可验收、可加权
-- checklist 项包含：`id/label/weight/required/source/verify_hint`
-- `extract_chapter_context.py` 文本输出新增“执行检查清单（可评分）”
-
-### Context Contract v2（阶段 F）
-
-- 新增 `writing_guidance.checklist_score`：章节执行评分与完成率
-- `index.db` 新增 `writing_checklist_scores` 持久化评分记录
-- 支持趋势查询：最近评分、评分均值、完成率均值
-
-### Context Contract v2（阶段 G）
-
-- `workflow_manager.py` 新增 Step 调用方标注（expected owner）
-- 新增步骤顺序违规追踪事件 `step_order_violation`
-- `call_trace.jsonl` 可用于定位“谁在何时调用了哪一步”
-
-### Context Contract v2（阶段 H）
-
-- 新增动态上下文预算：按章节阶段 early/mid/late 调整权重
-- `meta.context_weight_stage` 公开当前权重阶段
-- 目标：开篇重冲突与角色、中后期重世界与线索收束
-
-### Context Contract v2（阶段 I）
-
-- `genre_profile` 支持复合题材（如 `xuanhuan+realistic`）
-- 输出新增：`genres/composite/secondary_genres/composite_hints`
-- 写作建议自动加入“复合题材协同”提示
-
-### v5.4.1
-- **题材模板扩展**：新增 3 个题材模板（电竞 / 直播文 / 克苏鲁）
-- **题材映射增强**：init 支持同义输入映射（如“电竞文”“直播”“克系”）
-- **写作建议增强**：新增网文节奏基线与题材加权提示（章首目标阻力、微兑现密度、章末钩子）
-- **参数层同步**：补充 genre profile 与 reading taxonomy 的新题材规则
-
-### v5.3
-- **追读力分类标准**：钩子5类型、爽点8模式、微兑现7类型
-- **约束分层机制**：Hard Invariants (4条) + Soft Guidance (可Override)
-- **Override Contract**：违反软建议需记录理由和偿还计划
-- **追读力债务**：债务追踪、利息计算、逾期管理
-- **题材Profile**：11种内置题材配置（偏好钩子/爽点/微兑现要求）
-- **SQLite新表**：override_contracts、chase_debt、debt_events、chapter_reading_power
-- **Context Agent**：输出精简为7个板块（含追读力策略，债务状态按需输出）
-- **CLI新命令**：get-debt-summary、get-recent-reading-power、accrue-interest 等
-
-### v5.2
-- 创作任务书：Context Agent 输出人话版 8 章节格式（替代 JSON）
-- 追读力检查：新增 reader-pull-checker（第 6 个审查 Agent）
-- 章节设计：Step 1.5 选择开头/钩子/爽点模式，避免重复
-- 风格适配器：Step 2A/2B 拆分，先写剧情后网文化
-- 摘要分离：章节摘要存入 `.webnovel/summaries/ch{NNNN}.md`
-- chapter_meta：记录钩子/模式/结束状态到 state.json
-- 轻量模式：支持 `--fast` / `--minimal` 加速写作
-- 输出模板：7 个标准模板文件（state/index schema、设定集、大纲）
-
-### v5.1
-- SQLite 存储：entities/aliases/state_changes 迁移到 index.db
-- state.json 精简至 < 5KB
-- API 重试机制（指数退避）
-- 6 种爽点执行模式
-
-### v5.0
-- 双 Agent 架构 (Context + Data)
-- 纯正文写作，无需 XML 标签
-- 5 维并行审查
+[![Star History Chart](https://api.star-history.com/svg?repos=lingfengQAQ/webnovel-writer&type=Date)](https://star-history.com/#lingfengQAQ/webnovel-writer&Date)
 
 ---
 
